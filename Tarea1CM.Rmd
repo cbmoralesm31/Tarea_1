@@ -1,0 +1,98 @@
+---
+title: "Tarea 1"
+author: "Carolina Morales"
+date: "20/09/2019"
+output:
+  html_document:
+    fig_caption: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+## Preparación de datos
+
+En primer lugar, procedí a cargar y modificar los datos de avistamientos de objetos voladores no identificados (UFO) recolectados originalmente por la  NUFORC. 
+La modificacion de la planilla consistió en la adición de columnas de manera que los datos pudieran ser trabajables. Además. establecí el criterio de mantener los avistamientos de duración menor a un dia.
+
+*Para más información acerca de este dataset, visitar https://github.com/rfordatascience/tidytuesday/tree/master/data/2019/2019-06-25.*
+```{r}
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+```
+
+
+```{r}
+## Cargar dataset
+ufo_sightings <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-06-25/ufo_sightings.csv")
+
+## Cambiar sigla a nombre completo de cada país
+Pais <- c("Australia", "Canada", "Alemania", "Reino Unido", "EEUU")
+country <- c("au", "ca", "de", "gb", "us")
+NombreFull <- data.frame(Pais, country)
+ufo_sightings <- left_join(ufo_sightings, NombreFull)
+
+## Armar data frame para recuento avistamientos por país
+data1 <- ufo_sightings %>% filter(!is.na(country)) %>%  group_by(Pais) %>% summarise( n = n())
+data1 <- as.data.frame(data1) 
+
+
+## Crear columna de minutos, sacar los sin datos, filtrar por criterio de un dia
+ufo <- ufo_sightings %>% mutate(minutos = (encounter_length/60)) %>% filter(!is.na(country), !is.na(minutos)) %>% filter(minutos < 1440)  %>% mutate(horas = (minutos/60))
+
+## Crear columna year, a partir de fecha registrada no analizable
+UFO <-  ufo %>% mutate(year = substr(x = ufo$date_documented, 5,10)) 
+Year <- gsub("^.*?/","", UFO$year)
+UFOS <- cbind(UFO, Year) %>% select(-"year")
+
+## planilla final UFOS, recuento Data1
+```
+
+## Información por País
+
+```{r, echo= FALSE, include=FALSE}
+data2 <- data1[with(data1, order(n)), ]
+data2[1,1]
+```
+
+En la **Figura 1** se muestra el número de avistamientos de UFO por pais. La nación que más observaciones tiene es `r data2[5,1]`, con `r max(data1$n)` avistamientos Por el contrario, el pais que menos observaciones tiene es `r data2[1,1]` con `r min(data1$n)` avistamientos.
+
+```{r, fig.cap= "**Figura 1 Avistamientos de UFO por país.** Se muestra el total de avistamientos registrados por país en el periodo de tiempo considerado para el estudio. ", echo=FALSE}
+barplot <- ggplot(data = data1, aes(Pais, n, fill= Pais)) + 
+  geom_bar(stat = "identity") +
+  labs(fill = "Pais", x= "Pais", y= "Número de observaciones") +
+  scale_fill_discrete(name = "País", labels = c("Australia", "Canada", "Alemania", "Estados Unidos", "Reino Unido"))
+barplot
+```
+
+
+```{r, echo= FALSE, include=FALSE}
+UFOS1 <- UFOS %>% group_by(Pais, Year) %>% summarise(n = n())
+data3 <- UFOS1[with(UFOS1, order(n, decreasing = TRUE)), ]
+```
+
+En la **Figura 2** se muestra la dinámica por país del número de observaciones por año, en el periodo de comprendido entre los años 1998 y 2014. El peak de observaciones corresponde a `r max(UFOS1$n)` para `r data3[1,1] ` en el año `r data3[1,2] `
+
+```{r, fig.cap= "**Figura 2 Dinámica de avistamientos por país.** Se muestra la evolución de los avistamientos entre los años 1998 y 2014 para todos los paíces estudiados.", echo=FALSE}
+
+ggplot(UFOS1, aes(Year, n, color= Pais, group= Pais)) +
+  geom_point()+ geom_line()+
+  labs(fill = "Pais", x= "Año", y= "Numero de observaciones") +
+  theme_grey()
+```
+
+## Tabla resumen
+
+Finalmente, la **Tabla 1** resume las observaciones registradas a lo largo del periodo de tiempo para cada país. 
+
+```{r, echo= FALSE}
+
+data4 <- data3 %>% spread(Pais, n) 
+knitr::kable(data4, digits = 2, caption = "Tabla 1: Avistamientos de UFO entre los años 1998 y 2014 para los cinco paices en estudio") %>% 
+  kable_styling(bootstrap_options = "striped", full_width = F, position = "center") %>% 
+  footnote(general = "NA = no existen registros")
+```
+```
+
